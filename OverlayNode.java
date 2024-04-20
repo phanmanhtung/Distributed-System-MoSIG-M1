@@ -131,9 +131,11 @@ public class OverlayNode {
         String direction = message.substring(1, 2);
         int target = direction.equals("L") ? virtualRingPrev : virtualRingNext;
         // Send SEND message to the next-hop node in the virtual ring
-        String nextQueue = QUEUE_PREFIX + nextHop[target];
+        int nextPhysicalNode = nextHop[target];
+        String nextPhysicalQueue = QUEUE_PREFIX + nextPhysicalNode;
+        System.out.printf("Pass to next Node [%d]\n", nextPhysicalNode + 1);
         String sendMessage = String.format("%s%d %d %s", MESSAGE_TYPE_SEND, target, curNodeId, message.substring(2));
-        channel.basicPublish("", nextQueue, null, sendMessage.getBytes(StandardCharsets.UTF_8));
+        channel.basicPublish("", nextPhysicalQueue, null, sendMessage.getBytes(StandardCharsets.UTF_8));
     }
 
     // Method to handle SEND message
@@ -147,7 +149,8 @@ public class OverlayNode {
         if (target == curNodeId) {
             // If the current node is the target, print the message and indicate reaching destination
             System.out.printf("Node [%d] Received message: %s\n", curNodeId + 1, messageContent);
-            System.out.printf("Reaching destination.\n");
+            System.out.printf("Original message from Node [%d]\n", originalSender + 1);
+            System.out.printf("Reaching destination!\n");
             return;
         }
         
@@ -156,7 +159,8 @@ public class OverlayNode {
         String nextPhysicalQueue = QUEUE_PREFIX + nextPhysicalNode;
         // Print message passing information for intermediate nodes
         System.out.printf("Node [%d] Received message: %s\n", curNodeId + 1, messageContent);
-        System.out.printf("Original message from Node [%d], received from previous Node [%d], pass to next Node [%d]\n", originalSender + 1, curNodeId + 1, nextPhysicalNode + 1);
+        System.out.printf("Original message from Node [%d], pass to next Node [%d]\n", originalSender + 1, nextPhysicalNode + 1);
+        // Send SEND message to the next-hop node in the virtual ring
         channel.basicPublish("", nextPhysicalQueue, null, message.getBytes(StandardCharsets.UTF_8));
     }
 }
