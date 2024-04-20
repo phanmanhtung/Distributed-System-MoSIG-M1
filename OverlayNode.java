@@ -85,7 +85,16 @@ public class OverlayNode {
         
         // Generate next-hop routing table
         generateNextHop();
-        
+        System.out.print("nextHop = [");
+        for (int i = 0; i < nextHop.length; i++) {
+            System.out.print(nextHop[i]);
+            if (i < nextHop.length - 1) {
+                System.out.print(", ");
+            }
+        }
+        System.out.println("]");
+
+
         // Setup RabbitMQ connection and channels
         ConnectionFactory factory = new ConnectionFactory();
         factory.setHost("localhost");
@@ -134,22 +143,23 @@ public class OverlayNode {
         int nextPhysicalNode = nextHop[target];
         String nextPhysicalQueue = QUEUE_PREFIX + nextPhysicalNode;
         System.out.printf("Pass to next Node [%d]\n", nextPhysicalNode + 1);
-        String sendMessage = String.format("%s%d %d %s", MESSAGE_TYPE_SEND, target, curNodeId, message.substring(2));
+        String sendMessage = String.format("%s%d %d %s %d", MESSAGE_TYPE_SEND, target, curNodeId, message.substring(2), curNodeId);
         channel.basicPublish("", nextPhysicalQueue, null, sendMessage.getBytes(StandardCharsets.UTF_8));
     }
 
     // Method to handle SEND message
     private void handleSendMessage(String message, Channel channel) throws IOException {
         // Parse SEND message
-        String[] parts = message.substring(1).split(" ", 3);
+        String[] parts = message.substring(1).split(" ", 4);
         int target = Integer.parseInt(parts[0]);
         int originalSender = Integer.parseInt(parts[1]);
         String messageContent = parts[2];
+        int previousSender = Integer.parseInt(parts[3]);
         
         if (target == curNodeId) {
             // If the current node is the target, print the message and indicate reaching destination
             System.out.printf("Node [%d] Received message: %s\n", curNodeId + 1, messageContent);
-            System.out.printf("Original message from Node [%d]\n", originalSender + 1);
+            System.out.printf("Original message from Node [%d], received from previous Node [%d]\n", originalSender + 1, previousSender + 1);
             System.out.printf("Reaching destination!\n");
             return;
         }
@@ -159,8 +169,9 @@ public class OverlayNode {
         String nextPhysicalQueue = QUEUE_PREFIX + nextPhysicalNode;
         // Print message passing information for intermediate nodes
         System.out.printf("Node [%d] Received message: %s\n", curNodeId + 1, messageContent);
-        System.out.printf("Original message from Node [%d], pass to next Node [%d]\n", originalSender + 1, nextPhysicalNode + 1);
-        // Send SEND message to the next-hop node in the virtual ring
-        channel.basicPublish("", nextPhysicalQueue, null, message.getBytes(StandardCharsets.UTF_8));
+        System.out.printf("Original message from Node [%d], received from previous Node [%d], pass to next Node [%d]\n", originalSender + 1, previousSender + 1, nextPhysicalNode + 1);
+        // Send a new SEND message to the next-hop node in the virtual ring
+        String newSendMessage = String.format("%s%d %d %s %d", MESSAGE_TYPE_SEND, target, originalSender, messageContent, curNodeId);
+        channel.basicPublish("", nextPhysicalQueue, null, newSendMessage.getBytes(StandardCharsets.UTF_8));
     }
 }
